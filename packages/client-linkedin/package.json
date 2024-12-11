@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@ai16z/eliza": "workspace:*",
-    "linkedin-api": "^1.0.0",
+    "linkedin-api": "^0.0.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {
