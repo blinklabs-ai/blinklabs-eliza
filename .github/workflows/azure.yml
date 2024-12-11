@@ -48,6 +48,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: true
+          context: .
           file: Dockerfile
           tags: |
             ${{ secrets.ACR_REG_URL }}/blinkai/blinklabs-eliza:${{ github.sha }}
