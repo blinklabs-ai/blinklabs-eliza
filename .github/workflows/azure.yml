@@ -1,0 +1,67 @@
+name: Azure deploy
+
+permissions:
+  id-token: write
+  contents: read
+
+
+on:
+  push:
+    branches:
+      - blink-main
+
+
+jobs:
+  # security:
+  #   runs-on: ubuntu-latest
+  #   environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'dev' }}
+  #   steps:
+  #     - uses: actions/checkout@master
+  #     - name: Run Snyk to check for vulnerabilities
+  #       uses: snyk/actions/node@master
+  #       continue-on-error: true # To continue to next steps in case reported vulnerabilities also for now
+  #       env:
+  #         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'dev' }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to Azure Container Registry
+        run: az acr login --name ${{ secrets.ACR_REG_URL }} || exit 1
+        env:
+          ACR_NAME: ${{ secrets.ACR_NAME }}
+
+      - name: Build the image
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          file: Dockerfile
+          tags: |
+            ${{ secrets.ACR_REG_URL }}/blinkai/blinklabs-eliza:${{ github.sha }}
+            ${{ secrets.ACR_REG_URL }}/blinkai/blinklabs-eliza:latest
+
+      # - name: Scan Docker image with Trivy
+      #   uses: aquasecurity/trivy-action@0.20.0
+      #   with:
+      #     image-ref: ${{ secrets.ACR_REG_URL }}/blinkai/batch-service:latest
+
+      - name: Deploy Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          acrName: ${{ secrets.ACR_NAME }}
+          imageToDeploy: ${{ secrets.ACR_REG_URL }}/blinkai/blinklabs-eliza:${{ github.sha }}
+          containerAppName: 'eliza-agents'
+          resourceGroup: ${{ vars.RESOURCE_GROUP }}
