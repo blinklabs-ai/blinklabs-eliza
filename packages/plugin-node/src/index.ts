@@ -22,12 +22,12 @@ export function createNodePlugin() {
         services: [
             new BrowserService(),
             new ImageDescriptionService(),
-            new LlamaService(),
+            //new LlamaService(),
             new PdfService(),
             new SpeechService(),
             new TranscriptionService(),
             new VideoService(),
-            new AwsS3Service()
+            //new AwsS3Service()
         ],
     } as const satisfies Plugin;
 }
