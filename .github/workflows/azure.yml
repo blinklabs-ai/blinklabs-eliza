@@ -64,5 +64,5 @@ jobs:
         with:
           acrName: ${{ secrets.ACR_NAME }}
           imageToDeploy: ${{ secrets.ACR_REG_URL }}/blinkai/blinklabs-eliza:${{ github.sha }}
-          containerAppName: 'eliza-agents'
+          containerAppName: 'agent-service'
           resourceGroup: ${{ vars.RESOURCE_GROUP }}
