@@ -25,7 +25,7 @@ import {
     validateCharacterConfig,
 } from "@ai16z/eliza";
 import { zgPlugin } from "@ai16z/plugin-0g";
-import createGoatPlugin from "@ai16z/plugin-goat";
+//import createGoatPlugin from "@ai16z/plugin-goat";
 import { bootstrapPlugin } from "@ai16z/plugin-bootstrap";
 // import { intifacePlugin } from "@ai16z/plugin-intiface";
 import {
@@ -50,6 +50,8 @@ import path from "path";
 import readline from "readline";
 import { fileURLToPath } from "url";
 import yargs from "yargs";
+import express, { Request as ExpressRequest } from "express";
+import proxy from 'express-http-proxy';
 
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename); // get the name of the directory
@@ -384,9 +386,9 @@ export async function createAgent(
         throw new Error("Invalid TEE configuration");
     }
 
-    const goatPlugin = await createGoatPlugin((secret) =>
-        getSecret(character, secret)
-    );
+    // const goatPlugin = await createGoatPlugin((secret) =>
+    //     getSecret(character, secret)
+    // );
 
     return new AgentRuntime({
         databaseAdapter: db,
@@ -436,7 +438,7 @@ export async function createAgent(
             getSecret(character, "COINBASE_NOTIFICATION_URI")
                 ? webhookPlugin
                 : null,
-            getSecret(character, "ALCHEMY_API_KEY") ? goatPlugin : null,
+            //getSecret(character, "ALCHEMY_API_KEY") ? goatPlugin : null,
             getSecret(character, "FLOW_ADDRESS") &&
             getSecret(character, "FLOW_PRIVATE_KEY")
                 ? flowPlugin
@@ -490,7 +492,7 @@ async function startAgent(character: Character, directClient) {
 
         directClient.registerAgent(runtime);
 
-        return clients;
+        return {clients, runtime};
     } catch (error) {
         elizaLogger.error(
             `Error starting agent for character ${character.name}:`,
@@ -504,8 +506,8 @@ async function startAgent(character: Character, directClient) {
     }
 }
 
+const directClient = await DirectClientInterface.start();
 const startAgents = async () => {
-    const directClient = await DirectClientInterface.start();
     const args = parseArguments();
 
     let charactersArg = args.characters || args.character;
@@ -585,6 +587,67 @@ async function gracefulExit() {
     rl.close();
     process.exit(0);
 }
+
+
+//express server
+
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.post("/agents", async (req: ExpressRequest, res: express.Response) => {
+        try {
+            let character: any = req.body;
+            validateCharacterConfig(character);
+
+            // Handle plugins
+            if (isAllStrings(character.plugins)) {
+                elizaLogger.info("Plugins are: ", character.plugins);
+                const importedPlugins = await Promise.all(
+                    character.plugins.map(async (plugin) => {
+                        const importedPlugin = await import(plugin);
+                        return importedPlugin.default;
+                    })
+                );
+                character.plugins = importedPlugins;
+            }
+            elizaLogger.info(
+                `Successfully loaded via API: ${character.name}`
+            );
+
+            //start agent
+            const { runtime } = await startAgent(character, directClient);
+            elizaLogger.info(
+                `Successfully started via API: ${character.name}`
+            );
+
+            res.json({
+                success: true,
+                agentId: runtime.agentId,
+            });
+        } catch (e) {
+            elizaLogger.error(
+                `Error: ${e}`
+            );
+            res.status(500).send(`Error: ${e}`);
+            return;
+        }
+    }
+);
+
+//proxy to client-direct
+if(process.env.AGENT_PROXY) {
+    app.use('/agent', proxy(process.env.AGENT_PROXY, {
+        proxyReqPathResolver: function (req) {
+            return req.url.replace('/agent', '');
+        },
+    }));
+}
+
+//start agent server
+app.listen(Number(process.env.AGENT_PORT), process.env.AGENT_HOST, () => {
+    elizaLogger.success(`Server running`);
+});
+
 
 rl.on("SIGINT", gracefulExit);
 rl.on("SIGTERM", gracefulExit);

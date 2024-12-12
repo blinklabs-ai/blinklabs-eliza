@@ -41,6 +41,7 @@
         "@ai16z/plugin-solana": "workspace:*",
         "@ai16z/plugin-starknet": "workspace:*",
         "@ai16z/plugin-tee": "workspace:*",
+        "express-http-proxy": "^2.1.1",
         "readline": "1.3.0",
         "ws": "8.18.0",
         "yargs": "17.7.2"
